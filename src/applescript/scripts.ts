@@ -1859,10 +1859,10 @@ export function sendEmail(params: SendEmailParams): string {
     const escapedSubject = escapeForAppleScript(subject);
     const toRecipients = to.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n');
     const ccRecipients = cc != null && cc.length > 0
-        ? cc.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}, recipient type:recipient cc}`).join('\n')
+        ? cc.map(email => `    make new cc recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n')
         : '';
     const bccRecipients = bcc != null && bcc.length > 0
-        ? bcc.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}, recipient type:recipient bcc}`).join('\n')
+        ? bcc.map(email => `    make new bcc recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n')
         : '';
 
     // For HTML bodies, read from a temp file to avoid AppleScript string escaping issues.
@@ -1953,10 +1953,10 @@ export function createDraft(params: SendEmailParams): string {
     const escapedSubject = escapeForAppleScript(subject);
     const toRecipients = to.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n');
     const ccRecipients = cc != null && cc.length > 0
-        ? cc.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}, recipient type:recipient cc}`).join('\n')
+        ? cc.map(email => `    make new cc recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n')
         : '';
     const bccRecipients = bcc != null && bcc.length > 0
-        ? bcc.map(email => `    make new recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}, recipient type:recipient bcc}`).join('\n')
+        ? bcc.map(email => `    make new bcc recipient at newMessage with properties {email address:{address:"${escapeForAppleScript(email)}"}}`).join('\n')
         : '';
 
     let createMessageLine: string;

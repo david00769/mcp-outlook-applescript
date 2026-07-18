@@ -933,6 +933,40 @@ describe('sendEmail template escaping', () => {
 });
 
 // =============================================================================
+// CC/BCC recipients (bug fix 2026-07-18): must create the `cc recipient` /
+// `bcc recipient` SUBCLASS, not set the read-only `type` property. The old
+// `{..., recipient type:recipient cc}` was invalid AppleScript (wrong property
+// name, wrong enum, read-only property) → syntax error -2741 that broke every
+// send/draft carrying a CC or BCC.
+// =============================================================================
+
+describe('cc/bcc recipients use the subclass, not the read-only type property', () => {
+  const base = { to: ['to@example.com'], subject: 'x', body: 'b', bodyType: 'plain' as const };
+
+  for (const [name, build] of [['sendEmail', sendEmail], ['createDraft', createDraft]] as const) {
+    it(`${name}: cc uses \`make new cc recipient\``, () => {
+      const script = build({ ...base, cc: ['cc@example.com'] });
+      expect(script).toContain('make new cc recipient at newMessage with properties {email address:{address:"cc@example.com"}}');
+    });
+
+    it(`${name}: bcc uses \`make new bcc recipient\``, () => {
+      const script = build({ ...base, bcc: ['bcc@example.com'] });
+      expect(script).toContain('make new bcc recipient at newMessage with properties {email address:{address:"bcc@example.com"}}');
+    });
+
+    it(`${name}: never references the read-only \`recipient type\` property`, () => {
+      const script = build({ ...base, cc: ['cc@example.com'], bcc: ['bcc@example.com'] });
+      expect(script).not.toContain('recipient type');
+    });
+
+    it(`${name}: To still uses the base \`make new recipient\` (regression)`, () => {
+      const script = build({ ...base, cc: ['cc@example.com'] });
+      expect(script).toContain('make new recipient at newMessage with properties {email address:{address:"to@example.com"}}');
+    });
+  }
+});
+
+// =============================================================================
 // Send reliability hardening (incident 2026-06-05): inner timeout + error contracts
 // =============================================================================
 
