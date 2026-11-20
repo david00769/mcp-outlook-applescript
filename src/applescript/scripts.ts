@@ -46,10 +46,10 @@ const SENDER_BLOCK = `
         try
           set _sndr to sender of m
           try
-            set mSender to «class radd» of _sndr
+            set mSender to my sanitizeField(«class radd» of _sndr)
           end try
           try
-            set mSenderName to name of _sndr
+            set mSenderName to my sanitizeField(name of _sndr)
           end try
         end try`;
 
@@ -198,7 +198,7 @@ const CONTACT_LIST_OUTPUT = '"{{RECORD}}id{{=}}" & cId & "{{FIELD}}displayName{{
  */
 const PREVIEW_EXTRACT_BLOCK = `      set mPreview to ""
       try
-        set rawContent to plain text content of m
+        set rawContent to my sanitizeField(plain text content of m)
         if (count of rawContent) > 500 then
           set mPreview to text 1 thru 500 of rawContent
         else
@@ -219,7 +219,7 @@ tell application "Microsoft Outlook"
   repeat with f in allFolders
     try
       set fId to id of f
-      set fName to name of f
+      set fName to my sanitizeField(name of f)
       set uCount to unread count of f
       -- Per-folder timeout: slow folders (large mailboxes that haven't been
       -- queried recently) can take 60+ seconds to count. Cap at 3s and fall
@@ -309,7 +309,7 @@ ${dateVarBlock}${fetchBlock}
     try
       set m to item i of allMsgs
       set mId to id of m
-      set mSubject to subject of m
+      set mSubject to my sanitizeField(subject of m)
 ${SENDER_BLOCK}
 ${DATE_BLOCK}
       set mRead to is read of m
@@ -407,7 +407,7 @@ ${dateVarBlock}    set output to ""
       try
         set m to item i of dateMatches
         set mId to id of m
-        set mSubject to subject of m
+        set mSubject to my sanitizeField(subject of m)
 ${SENDER_BLOCK}
 ${DATE_BLOCK}
         set mRead to is read of m
@@ -501,7 +501,7 @@ ${dateVarBlock}
       try
         set m to item i of subjectMatches
         set mId to id of m
-        set mSubject to subject of m
+        set mSubject to my sanitizeField(subject of m)
 ${SENDER_BLOCK}
 ${DATE_BLOCK}
         set mRead to is read of m
@@ -544,7 +544,7 @@ ${SENDER_BLOCK}
           if phase2Skipped < phase2Skip then
             set phase2Skipped to phase2Skipped + 1
           else
-            set mSubject to subject of m
+            set mSubject to my sanitizeField(subject of m)
 ${DATE_BLOCK}
             set mRead to is read of m
             set mPreview to ""
@@ -600,7 +600,7 @@ ${FLAG_STATUS_BLOCK}
           try
             set mContent to content of m
             if mContent contains "${escapedQuery}" then
-              set mSubject to subject of m
+              set mSubject to my sanitizeField(subject of m)
 ${SENDER_BLOCK}
 ${DATE_BLOCK}
               set mRead to is read of m
@@ -628,16 +628,16 @@ export function getMessage(messageId: number): string {
 tell application "Microsoft Outlook"
   set m to message id ${messageId}
   set mId to id of m
-  set mSubject to subject of m
+  set mSubject to my sanitizeField(subject of m)
   set mSender to ""
   set mSenderName to ""
   try
     set _sndr to sender of m
     try
-      set mSender to «class radd» of _sndr
+      set mSender to my sanitizeField(«class radd» of _sndr)
     end try
     try
-      set mSenderName to name of _sndr
+      set mSenderName to my sanitizeField(name of _sndr)
     end try
   end try
   set mDateReceived to ""
@@ -660,11 +660,11 @@ tell application "Microsoft Outlook"
   end try
   set mHtml to ""
   try
-    set mHtml to content of m
+    set mHtml to my sanitizeField(content of m)
   end try
   set mPlain to ""
   try
-    set mPlain to plain text content of m
+    set mPlain to my sanitizeField(plain text content of m)
   end try
   set mHasHtml to has html of m
   set mFolderId to ""
@@ -676,13 +676,13 @@ tell application "Microsoft Outlook"
   set toList to ""
   try
     repeat with r in to recipients of m
-      set toList to toList & (address of r) & ","
+      set toList to toList & my sanitizeField(address of r) & ","
     end repeat
   end try
   set ccList to ""
   try
     repeat with r in cc recipients of m
-      set ccList to ccList & (address of r) & ","
+      set ccList to ccList & my sanitizeField(address of r) & ","
     end repeat
   end try
 
@@ -692,7 +692,7 @@ tell application "Microsoft Outlook"
   try
     set idx to 1
     repeat with a in attachments of m
-      set aName to name of a
+      set aName to my sanitizeField(name of a)
       set attachList to attachList & aName & ","
       set aSize to 0
       try
@@ -739,7 +739,7 @@ tell application "Microsoft Outlook"
   set idx to 1
   repeat with a in attachList
     try
-      set aName to name of a
+      set aName to my sanitizeField(name of a)
       set aSize to 0
       try
         set aSize to file size of a
@@ -772,7 +772,7 @@ tell application "Microsoft Outlook"
       return "{{RECORD}}success{{=}}false{{FIELD}}error{{=}}Attachment index ${attachmentIndex} out of range (message has " & attachCount & " attachments)"
     end if
     set a to item ${attachmentIndex} of attachList
-    set aName to name of a
+    set aName to my sanitizeField(name of a)
     set aSize to 0
     try
       set aSize to file size of a
@@ -798,7 +798,7 @@ tell application "Microsoft Outlook"
   repeat with c in allCalendars
     try
       set cId to id of c
-      set cName to name of c
+      set cName to my sanitizeField(name of c)
       set output to output & "{{RECORD}}id{{=}}" & cId & "{{FIELD}}name{{=}}" & cName
     end try
   end repeat
@@ -844,7 +844,7 @@ ${dateVarBlock}${fetchBlock}
     try
       set e to item i of allEvents
       set eId to id of e
-      set eSubject to subject of e
+      set eSubject to my sanitizeField(subject of e)
       set eStart to ""
       try
         set eStart to start time of e as «class isot» as string
@@ -855,7 +855,7 @@ ${dateVarBlock}${fetchBlock}
       end try
       set eLocation to ""
       try
-        set eLocation to location of e
+        set eLocation to my sanitizeField(location of e)
       end try
       set eAllDay to all day flag of e
       set eRecurring to is recurring of e
@@ -875,7 +875,7 @@ export function getEvent(eventId: number): string {
 tell application "Microsoft Outlook"
   set e to calendar event id ${eventId}
   set eId to id of e
-  set eSubject to subject of e
+  set eSubject to my sanitizeField(subject of e)
   set eStart to ""
   try
     set eStart to start time of e as «class isot» as string
@@ -886,21 +886,21 @@ tell application "Microsoft Outlook"
   end try
   set eLocation to ""
   try
-    set eLocation to location of e
+    set eLocation to my sanitizeField(location of e)
   end try
   set eContent to ""
   try
-    set eContent to content of e
+    set eContent to my sanitizeField(content of e)
   end try
   set ePlain to ""
   try
-    set ePlain to plain text content of e
+    set ePlain to my sanitizeField(plain text content of e)
   end try
   set eAllDay to all day flag of e
   set eRecurring to is recurring of e
   set eOrganizer to ""
   try
-    set eOrganizer to organizer of e
+    set eOrganizer to my sanitizeField(organizer of e)
   end try
   set eCalId to ""
   try
@@ -911,8 +911,8 @@ tell application "Microsoft Outlook"
   set attendeeList to ""
   try
     repeat with a in attendees of e
-      set aEmail to email address of a
-      set aName to name of a
+      set aEmail to my sanitizeField(email address of a)
+      set aName to my sanitizeField(name of a)
       set attendeeList to attendeeList & aEmail & "|" & aName & ","
     end repeat
   end try
@@ -954,7 +954,7 @@ ${dateVarBlock}  set searchResults to (calendar events whose ${whoseClause})
     try
       set e to item i of searchResults
       set eId to id of e
-      set eSubject to subject of e
+      set eSubject to my sanitizeField(subject of e)
       set eStart to ""
       try
         set eStart to start time of e as «class isot» as string
@@ -965,7 +965,7 @@ ${dateVarBlock}  set searchResults to (calendar events whose ${whoseClause})
       end try
       set eLocation to ""
       try
-        set eLocation to location of e
+        set eLocation to my sanitizeField(location of e)
       end try
 
       set output to output & "{{RECORD}}id{{=}}" & eId & "{{FIELD}}subject{{=}}" & eSubject & "{{FIELD}}startTime{{=}}" & eStart & "{{FIELD}}endTime{{=}}" & eEnd & "{{FIELD}}location{{=}}" & eLocation
@@ -1245,24 +1245,24 @@ tell application "Microsoft Outlook"
     try
       set c to item i of allContacts
       set cId to id of c
-      set cDisplay to display name of c
+      set cDisplay to my sanitizeField(display name of c)
       set cFirst to ""
       try
-        set cFirst to first name of c
+        set cFirst to my sanitizeField(first name of c)
       end try
       set cLast to ""
       try
-        set cLast to last name of c
+        set cLast to my sanitizeField(last name of c)
       end try
       set cCompany to ""
       try
-        set cCompany to company of c
+        set cCompany to my sanitizeField(company of c)
       end try
       set cEmail to ""
       try
         set emailAddrs to email addresses of c
         if (count of emailAddrs) > 0 then
-          set cEmail to address of item 1 of emailAddrs
+          set cEmail to my sanitizeField(address of item 1 of emailAddrs)
         end if
       end try
 
@@ -1292,24 +1292,24 @@ tell application "Microsoft Outlook"
     try
       set c to item i of searchResults
       set cId to id of c
-      set cDisplay to display name of c
+      set cDisplay to my sanitizeField(display name of c)
       set cFirst to ""
       try
-        set cFirst to first name of c
+        set cFirst to my sanitizeField(first name of c)
       end try
       set cLast to ""
       try
-        set cLast to last name of c
+        set cLast to my sanitizeField(last name of c)
       end try
       set cCompany to ""
       try
-        set cCompany to company of c
+        set cCompany to my sanitizeField(company of c)
       end try
       set cEmail to ""
       try
         set emailAddrs to email addresses of c
         if (count of emailAddrs) > 0 then
-          set cEmail to address of item 1 of emailAddrs
+          set cEmail to my sanitizeField(address of item 1 of emailAddrs)
         end if
       end try
 
@@ -1328,38 +1328,38 @@ export function getContact(contactId: number): string {
 tell application "Microsoft Outlook"
   set c to contact id ${contactId}
   set cId to id of c
-  set cDisplay to display name of c
+  set cDisplay to my sanitizeField(display name of c)
   set cFirst to ""
   try
-    set cFirst to first name of c
+    set cFirst to my sanitizeField(first name of c)
   end try
   set cLast to ""
   try
-    set cLast to last name of c
+    set cLast to my sanitizeField(last name of c)
   end try
   set cMiddle to ""
   try
-    set cMiddle to middle name of c
+    set cMiddle to my sanitizeField(middle name of c)
   end try
   set cNickname to ""
   try
-    set cNickname to nickname of c
+    set cNickname to my sanitizeField(nickname of c)
   end try
   set cCompany to ""
   try
-    set cCompany to company of c
+    set cCompany to my sanitizeField(company of c)
   end try
   set cTitle to ""
   try
-    set cTitle to job title of c
+    set cTitle to my sanitizeField(job title of c)
   end try
   set cDept to ""
   try
-    set cDept to department of c
+    set cDept to my sanitizeField(department of c)
   end try
   set cNotes to ""
   try
-    set cNotes to description of c
+    set cNotes to my sanitizeField(description of c)
   end try
 
   -- Phones
@@ -1380,7 +1380,7 @@ tell application "Microsoft Outlook"
   set emailList to ""
   try
     repeat with e in email addresses of c
-      set emailList to emailList & (address of e) & ","
+      set emailList to emailList & my sanitizeField(address of e) & ","
     end repeat
   end try
 
@@ -1433,7 +1433,7 @@ tell application "Microsoft Outlook"
     try
       set t to item i of allTasks
       set tId to id of t
-      set tName to name of t
+      set tName to my sanitizeField(name of t)
       set tDue to ""
       try
         set tDue to due date of t as «class isot» as string
@@ -1475,7 +1475,7 @@ tell application "Microsoft Outlook"
     try
       set t to item i of searchResults
       set tId to id of t
-      set tName to name of t
+      set tName to my sanitizeField(name of t)
       set tDue to ""
       try
         set tDue to due date of t as «class isot» as string
@@ -1497,14 +1497,14 @@ export function getTask(taskId: number): string {
 tell application "Microsoft Outlook"
   set t to task id ${taskId}
   set tId to id of t
-  set tName to name of t
+  set tName to my sanitizeField(name of t)
   set tContent to ""
   try
-    set tContent to content of t
+    set tContent to my sanitizeField(content of t)
   end try
   set tPlain to ""
   try
-    set tPlain to plain text content of t
+    set tPlain to my sanitizeField(plain text content of t)
   end try
   set tDue to ""
   try
@@ -1559,7 +1559,7 @@ tell application "Microsoft Outlook"
     try
       set n to item i of allNotes
       set nId to id of n
-      set nName to name of n
+      set nName to my sanitizeField(name of n)
       set nCreated to ""
       try
         set nCreated to creation date of n as «class isot» as string
@@ -1570,10 +1570,10 @@ tell application "Microsoft Outlook"
       end try
       set nPreview to ""
       try
-        set nPreview to text 1 thru 200 of plain text content of n
+        set nPreview to my sanitizeField(text 1 thru 200 of plain text content of n)
       on error
         try
-          set nPreview to plain text content of n
+          set nPreview to my sanitizeField(plain text content of n)
         end try
       end try
 
@@ -1603,17 +1603,17 @@ tell application "Microsoft Outlook"
     try
       set n to item i of searchResults
       set nId to id of n
-      set nName to name of n
+      set nName to my sanitizeField(name of n)
       set nCreated to ""
       try
         set nCreated to creation date of n as «class isot» as string
       end try
       set nPreview to ""
       try
-        set nPreview to text 1 thru 200 of plain text content of n
+        set nPreview to my sanitizeField(text 1 thru 200 of plain text content of n)
       on error
         try
-          set nPreview to plain text content of n
+          set nPreview to my sanitizeField(plain text content of n)
         end try
       end try
 
@@ -1632,14 +1632,14 @@ export function getNote(noteId: number): string {
 tell application "Microsoft Outlook"
   set n to note id ${noteId}
   set nId to id of n
-  set nName to name of n
+  set nName to my sanitizeField(name of n)
   set nContent to ""
   try
-    set nContent to content of n
+    set nContent to my sanitizeField(content of n)
   end try
   set nPlain to ""
   try
-    set nPlain to plain text content of n
+    set nPlain to my sanitizeField(plain text content of n)
   end try
   set nCreated to ""
   try
@@ -2024,6 +2024,54 @@ ${acctResolution}
       move newMessage to (drafts of acct)
       set msgId to "" & (id of newMessage)
 
+      set output to "{{RECORD}}success{{=}}true{{FIELD}}messageId{{=}}" & msgId
+    end timeout
+    return output
+  on error errMsg number errNum
+    set output to "{{RECORD}}success{{=}}false{{FIELD}}error{{=}}" & errMsg & " (error " & errNum & ")"
+    return output
+  end try
+end tell
+`;
+}
+
+/** Input parameters for a reply or reply-all draft. */
+export interface ReplyDraftParams {
+    /** Outlook id of the message being answered. */
+    readonly messageId: number;
+    /** True for reply-all (every original recipient), false for the sender only. */
+    readonly replyAll: boolean;
+    /** File holding the HTML to place above the quoted original. */
+    readonly bodyFilePath: string;
+}
+
+/**
+ * Creates a threaded reply (or reply-all) DRAFT and moves it into the server
+ * Drafts folder of the account the original message belongs to, so it syncs.
+ * It is never sent. Outlook's own `reply to` builds the recipients, subject and
+ * quoted original, and keeps the conversation threading; the new text is read
+ * from a file (so no AppleScript string escaping applies to it) and placed
+ * above the quoted original, keeping its HTML. Reply design adapted from
+ * iandunham2's fork; that fork's reply sent a new non-threaded message and its
+ * reply-all scanned the whole Drafts folder to find the draft again, which the
+ * move below makes unnecessary (the reference survives the move, as in
+ * createDraft).
+ */
+export function createReplyDraft(params: ReplyDraftParams): string {
+    const escapedPath = escapeForAppleScript(params.bodyFilePath);
+    return `
+tell application "Microsoft Outlook"
+  try
+    -- Inner timeout fires before the Node 60s timeout so a stuck bridge raises
+    -- -1712 cleanly instead of being SIGKILLed mid-AppleEvent (bridge-corrupting).
+    with timeout of 45 seconds
+      set sourceMsg to message id ${params.messageId}
+      set acct to account of sourceMsg
+      set replyMsg to reply to sourceMsg opening window false reply to all ${params.replyAll ? 'true' : 'false'}
+      set replyHtml to do shell script "cat " & quoted form of "${escapedPath}"
+      set content of replyMsg to replyHtml & (content of replyMsg)
+      move replyMsg to (drafts of acct)
+      set msgId to "" & (id of replyMsg)
       set output to "{{RECORD}}success{{=}}true{{FIELD}}messageId{{=}}" & msgId
     end timeout
     return output

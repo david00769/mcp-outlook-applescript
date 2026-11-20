@@ -5,6 +5,8 @@ import { randomBytes } from 'node:crypto';
 import { executeAppleScriptOrThrow, assertBridgeHealthyForWrite, AppleScriptExecutionError } from './executor.js';
 import * as scripts from './scripts.js';
 import { parseSendEmailResult } from './parser.js';
+import { assertSafeAttachmentPath } from '../utils/paths.js';
+import { logAudit } from '../utils/audit.js';
 import { AppleScriptError, AttachmentNotFoundError, MailSendError, MailSendIndeterminateError } from '../utils/errors.js';
 /**
  * Node-level timeout for the send osascript. MUST be larger than the inner
@@ -14,30 +16,53 @@ import { AppleScriptError, AttachmentNotFoundError, MailSendError, MailSendIndet
  */
 const SEND_NODE_TIMEOUT_MS = 60_000;
 /** Sends email through Outlook via AppleScript. */
+/**
+ * Validates every attachment and inline-image path (sensitive-file denylist or
+ * the OUTLOOK_MCP_ATTACHMENT_DIR allowlist, after resolving symlinks) and that
+ * it exists, and returns the params carrying the resolved paths, so the file
+ * attached is the file that was checked.
+ * @throws ValidationError if a path is disallowed.
+ * @throws AttachmentNotFoundError if a path does not exist.
+ */
+function withCheckedFiles(params) {
+    const check = (path) => {
+        const safe = assertSafeAttachmentPath(path);
+        if (!existsSync(safe)) {
+            throw new AttachmentNotFoundError(path);
+        }
+        return safe;
+    };
+    return {
+        ...params,
+        ...(params.attachments != null && {
+            attachments: params.attachments.map((a) => ({ ...a, path: check(a.path) })),
+        }),
+        ...(params.inlineImages != null && {
+            inlineImages: params.inlineImages.map((i) => ({ ...i, path: check(i.path) })),
+        }),
+    };
+}
+/** Recipient and file counts for an audit line; never addresses or paths. */
+function auditCounts(params) {
+    return {
+        to: params.to.length,
+        cc: params.cc?.length ?? 0,
+        bcc: params.bcc?.length ?? 0,
+        attachments: (params.attachments?.length ?? 0) + (params.inlineImages?.length ?? 0),
+    };
+}
 export class AppleScriptMailSender {
     /**
      * Validates attachment paths, builds the send-email AppleScript, executes
      * it, and parses the result.
      * @param params - Email composition parameters (recipients, body, attachments, etc.).
      * @returns The sent message's ID and timestamp.
+     * @throws ValidationError if an attachment or inline image path is disallowed.
      * @throws AttachmentNotFoundError if any attachment or inline image path does not exist.
      * @throws MailSendError if Outlook reports a send failure.
      */
     sendEmail(params) {
-        if (params.attachments != null) {
-            for (const attachment of params.attachments) {
-                if (!existsSync(attachment.path)) {
-                    throw new AttachmentNotFoundError(attachment.path);
-                }
-            }
-        }
-        if (params.inlineImages != null) {
-            for (const image of params.inlineImages) {
-                if (!existsSync(image.path)) {
-                    throw new AttachmentNotFoundError(image.path);
-                }
-            }
-        }
+        params = withCheckedFiles(params);
         // Pre-send health gate: refuse with guidance if the bridge is degraded,
         // BEFORE composing anything. Never fire a send into a stuck bridge — it
         // hangs and gets SIGKILLed mid-AppleEvent, corrupting the bridge.
@@ -98,6 +123,7 @@ export class AppleScriptMailSender {
                 }
                 throw new MailSendError(reason);
             }
+            logAudit('send_email', { messageId: result.messageId ?? '', ...auditCounts(params) });
             return {
                 messageId: result.messageId ?? '',
                 sentAt: result.sentAt ?? '',
@@ -119,25 +145,13 @@ export class AppleScriptMailSender {
      * account's drafts folder (which syncs to other devices) instead of sending.
      * @param params - Email composition parameters (recipients, body, attachments, etc.).
      * @returns The saved draft's message ID.
+     * @throws ValidationError if an attachment or inline image path is disallowed.
      * @throws AttachmentNotFoundError if any attachment or inline image path does not exist.
      * @throws MailSendError if Outlook reports a failure saving the draft.
      * @throws MailSendIndeterminateError if the operation times out mid-flight (verify in Drafts before retrying).
      */
     createDraft(params) {
-        if (params.attachments != null) {
-            for (const attachment of params.attachments) {
-                if (!existsSync(attachment.path)) {
-                    throw new AttachmentNotFoundError(attachment.path);
-                }
-            }
-        }
-        if (params.inlineImages != null) {
-            for (const image of params.inlineImages) {
-                if (!existsSync(image.path)) {
-                    throw new AttachmentNotFoundError(image.path);
-                }
-            }
-        }
+        params = withCheckedFiles(params);
         // Same pre-write health gate as send: never fire AppleScript composing
         // into a degraded bridge — it hangs, gets SIGKILLed, and corrupts the bridge.
         assertBridgeHealthyForWrite('create_draft');
@@ -167,33 +181,9 @@ export class AppleScriptMailSender {
                 scriptParams = { ...scriptParams, inlineImages: params.inlineImages };
             if (params.accountId != null)
                 scriptParams = { ...scriptParams, accountId: params.accountId };
-            const script = scripts.createDraft(scriptParams);
-            let output;
-            try {
-                output = executeAppleScriptOrThrow(script, { timeoutMs: SEND_NODE_TIMEOUT_MS });
-            }
-            catch (err) {
-                if (err instanceof AppleScriptExecutionError && err.errorType === 'timeout') {
-                    throw new MailSendIndeterminateError('osascript was killed at the Node 60s timeout while saving the draft — check Drafts before retrying');
-                }
-                throw err;
-            }
-            const result = parseSendEmailResult(output);
-            if (result == null) {
-                throw new AppleScriptError('Failed to parse create draft response');
-            }
-            if (!result.success) {
-                const reason = result.error ?? 'Unknown error';
-                // Inner timeout (-1712): the draft may or may not have saved/moved.
-                // Signal INDETERMINATE so the caller verifies rather than creating a duplicate.
-                if (/-1712|AppleEvent timed out|timed out/i.test(reason)) {
-                    throw new MailSendIndeterminateError(`AppleScript draft save timed out: ${reason} — check Drafts before retrying`);
-                }
-                throw new MailSendError(reason);
-            }
-            return {
-                messageId: result.messageId ?? '',
-            };
+            const messageId = runDraftScript(scripts.createDraft(scriptParams));
+            logAudit('create_draft', { messageId, ...auditCounts(params) });
+            return { messageId };
         }
         finally {
             if (bodyFilePath != null) {
@@ -204,6 +194,73 @@ export class AppleScriptMailSender {
             }
         }
     }
+    /**
+     * Saves a threaded reply or reply-all to an existing message as a DRAFT in
+     * that message's account Drafts folder. Never sends.
+     * @throws MailSendError if Outlook reports a failure saving the draft.
+     * @throws MailSendIndeterminateError if it times out mid-flight (verify in Drafts before retrying).
+     */
+    createReplyDraft(params) {
+        assertBridgeHealthyForWrite('reply_to_email');
+        const html = params.bodyType === 'html' ? params.body : plainTextToHtml(params.body);
+        const bodyFilePath = join(tmpdir(), `mcp-outlook-html-${randomBytes(8).toString('hex')}.html`);
+        writeFileSync(bodyFilePath, html, 'utf8');
+        try {
+            const messageId = runDraftScript(scripts.createReplyDraft({
+                messageId: params.messageId,
+                replyAll: params.replyAll,
+                bodyFilePath,
+            }));
+            logAudit('reply_to_email', { sourceMessageId: params.messageId, replyAll: params.replyAll, messageId });
+            return { messageId };
+        }
+        finally {
+            try {
+                unlinkSync(bodyFilePath);
+            }
+            catch { /* ignore cleanup errors */ }
+        }
+    }
+}
+/**
+ * Runs a draft-saving script and returns the saved draft's id. A timeout at
+ * either layer is INDETERMINATE (the draft may or may not exist), so the caller
+ * verifies in Drafts rather than creating a duplicate.
+ */
+function runDraftScript(script) {
+    let output;
+    try {
+        output = executeAppleScriptOrThrow(script, { timeoutMs: SEND_NODE_TIMEOUT_MS });
+    }
+    catch (err) {
+        if (err instanceof AppleScriptExecutionError && err.errorType === 'timeout') {
+            throw new MailSendIndeterminateError('osascript was killed at the Node 60s timeout while saving the draft — check Drafts before retrying');
+        }
+        throw err;
+    }
+    const result = parseSendEmailResult(output);
+    if (result == null) {
+        throw new AppleScriptError('Failed to parse draft response');
+    }
+    if (!result.success) {
+        const reason = result.error ?? 'Unknown error';
+        // Inner timeout (-1712): the draft may or may not have saved/moved.
+        if (/-1712|AppleEvent timed out|timed out/i.test(reason)) {
+            throw new MailSendIndeterminateError(`AppleScript draft save timed out: ${reason} — check Drafts before retrying`);
+        }
+        throw new MailSendError(reason);
+    }
+    return result.messageId ?? '';
+}
+/** Escapes plain text as HTML, one `<br>` per line break, followed by a blank line. */
+export function plainTextToHtml(text) {
+    const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/\r\n|\r|\n/g, '<br>');
+    return `<div>${escaped}</div><br>`;
 }
 /** Creates a new AppleScriptMailSender instance. */
 export function createMailSender() {

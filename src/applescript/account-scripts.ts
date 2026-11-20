@@ -14,8 +14,8 @@ tell application "Microsoft Outlook"
     repeat with acc in exchangeAccounts
       try
         set accId to id of acc
-        set accName to name of acc
-        set accEmail to email address of acc
+        set accName to my sanitizeField(name of acc)
+        set accEmail to my sanitizeField(email address of acc)
         set accType to "exchange"
         set output to output & "${DELIMITERS.RECORD}id${DELIMITERS.EQUALS}" & accId & "${DELIMITERS.FIELD}name${DELIMITERS.EQUALS}" & accName & "${DELIMITERS.FIELD}email${DELIMITERS.EQUALS}" & accEmail & "${DELIMITERS.FIELD}type${DELIMITERS.EQUALS}" & accType
       end try
@@ -28,8 +28,8 @@ tell application "Microsoft Outlook"
     repeat with acc in imapAccounts
       try
         set accId to id of acc
-        set accName to name of acc
-        set accEmail to email address of acc
+        set accName to my sanitizeField(name of acc)
+        set accEmail to my sanitizeField(email address of acc)
         set accType to "imap"
         set output to output & "${DELIMITERS.RECORD}id${DELIMITERS.EQUALS}" & accId & "${DELIMITERS.FIELD}name${DELIMITERS.EQUALS}" & accName & "${DELIMITERS.FIELD}email${DELIMITERS.EQUALS}" & accEmail & "${DELIMITERS.FIELD}type${DELIMITERS.EQUALS}" & accType
       end try
@@ -42,8 +42,8 @@ tell application "Microsoft Outlook"
     repeat with acc in popAccounts
       try
         set accId to id of acc
-        set accName to name of acc
-        set accEmail to email address of acc
+        set accName to my sanitizeField(name of acc)
+        set accEmail to my sanitizeField(email address of acc)
         set accType to "pop"
         set output to output & "${DELIMITERS.RECORD}id${DELIMITERS.EQUALS}" & accId & "${DELIMITERS.FIELD}name${DELIMITERS.EQUALS}" & accName & "${DELIMITERS.FIELD}email${DELIMITERS.EQUALS}" & accEmail & "${DELIMITERS.FIELD}type${DELIMITERS.EQUALS}" & accType
       end try
@@ -112,7 +112,7 @@ tell application "Microsoft Outlook"
       repeat with f in allFolders
         try
           set fId to id of f
-          set fName to name of f
+          set fName to my sanitizeField(name of f)
           set uCount to unread count of f
           set mCount to 0
           try
@@ -135,7 +135,7 @@ tell application "Microsoft Outlook"
       repeat with f in allFolders
         try
           set fId to id of f
-          set fName to name of f
+          set fName to my sanitizeField(name of f)
           set uCount to unread count of f
           set mCount to 0
           try
@@ -158,7 +158,7 @@ tell application "Microsoft Outlook"
       repeat with f in allFolders
         try
           set fId to id of f
-          set fName to name of f
+          set fName to my sanitizeField(name of f)
           set uCount to unread count of f
           set mCount to 0
           try

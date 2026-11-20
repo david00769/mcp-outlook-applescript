@@ -53,6 +53,7 @@ import {
     SearchNotesInput,
     ListFoldersWithAccountInput,
     SendEmailInput,
+    ReplyToEmailInput,
     PrepareDeleteEmailInput,
     ConfirmDeleteEmailInput,
     PrepareMoveEmailInput,
@@ -470,6 +471,26 @@ export function createServer(): McpServer {
                 message_id: draft.messageId,
                 status: 'draft_saved',
                 folder: 'Drafts',
+            });
+        }),
+    );
+
+    server.tool('reply_to_email', 'Create a threaded REPLY (or reply-all) to an existing email and save it as a DRAFT — it is NOT sent. Outlook builds the recipients, the "Re:" subject and the quoted original and keeps the conversation thread; your text goes above the quote. reply_all=false answers the sender only; reply_all=true answers everyone on the original To and CC. The draft is moved into the server Drafts folder of the account the original belongs to, so it syncs to other devices. Returns the draft message_id. Review and send it from Outlook or the iPhone. Returns an error if the email ID does not exist. RELIABILITY: refused before composing if the AppleScript bridge is degraded; a mid-flight timeout is INDETERMINATE — check Drafts (list_emails) before retrying.',
+        ReplyToEmailInput.shape,
+        handle((args) => {
+            if (mailSender == null) return errorResult('Email drafting is not available');
+            const params = ReplyToEmailInput.parse(args);
+            const draft = mailSender.createReplyDraft({
+                messageId: params.email_id,
+                body: params.body,
+                bodyType: params.body_type,
+                replyAll: params.reply_all,
+            });
+            return jsonResult({
+                message_id: draft.messageId,
+                status: 'draft_saved',
+                folder: 'Drafts',
+                reply_all: params.reply_all,
             });
         }),
     );

@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { z } from 'zod';
+import { assertSafeDownloadPath } from '../utils/paths.js';
+import { logAudit } from '../utils/audit.js';
 import { paginate } from '../types/index.js';
 import { MAX_ATTACHMENT_DOWNLOAD_SIZE } from '../types/mail.js';
 import { appleTimestampToIso } from '../utils/dates.js';
@@ -64,7 +66,7 @@ export const ListAttachmentsInput = z.strictObject({
 export const DownloadAttachmentInput = z.strictObject({
     email_id: z.number().int().positive().describe('The email ID containing the attachment (e.g., from list_emails)'),
     attachment_index: z.number().int().positive().describe('The 1-based index of the attachment (e.g., 1 for the first attachment from list_attachments)'),
-    save_path: z.string().min(1).describe('Absolute file path where the attachment should be saved (e.g., "/tmp/report.pdf")'),
+    save_path: z.string().min(1).describe('Absolute file path where the attachment should be saved; must be inside OUTLOOK_MCP_DOWNLOAD_DIR, default ~/Downloads (e.g., "~/Downloads/report.pdf")'),
 });
 export const ListFoldersWithAccountInput = z.strictObject({
     account_id: z.union([
@@ -90,6 +92,12 @@ export const SendEmailInput = z.strictObject({
         content_id: z.string().min(1).describe('Content ID for referencing in HTML body via cid: (e.g., "logo1")'),
     })).optional().describe('Inline images for HTML body. If omitted, no inline images are included.'),
     account_id: z.number().int().positive().optional().describe('Account ID to send from (e.g., from list_accounts). If omitted, uses the default account.'),
+});
+export const ReplyToEmailInput = z.strictObject({
+    email_id: z.number().int().positive().describe('ID of the email to answer (from list_emails, search_emails or get_email)'),
+    body: z.string().min(1).describe('Your reply text; it is placed above the quoted original'),
+    body_type: z.enum(['plain', 'html']).default('plain').describe('"plain" (default) or "html" for the reply text'),
+    reply_all: z.boolean().default(false).describe('true to reply to everyone on the original (To and CC); false (default) replies to the sender only'),
 });
 // ---------------------------------------------------------------------------
 // Row-to-domain transformers
@@ -264,7 +272,10 @@ export class MailTools {
         if (row == null) {
             throw new NotFoundError('Email', email_id);
         }
-        const dir = dirname(save_path);
+        // Confine the destination to the allowed download directory (blocks
+        // path traversal, symlink escapes and writes the model chose elsewhere).
+        const safePath = assertSafeDownloadPath(save_path);
+        const dir = dirname(safePath);
         if (!existsSync(dir)) {
             throw new ValidationError(`Directory does not exist: ${dir}`);
         }
@@ -276,13 +287,14 @@ export class MailTools {
         if (attachment.size > MAX_ATTACHMENT_DOWNLOAD_SIZE) {
             throw new AttachmentTooLargeError(attachment.name, attachment.size, MAX_ATTACHMENT_DOWNLOAD_SIZE);
         }
-        const result = this.attachmentReader.saveAttachment(email_id, attachment_index, save_path);
+        const result = this.attachmentReader.saveAttachment(email_id, attachment_index, safePath);
         if (!result.success) {
             throw new AttachmentSaveError(attachment.name, result.error ?? 'Unknown error');
         }
+        logAudit('download_attachment', { emailId: email_id, attachmentIndex: attachment_index });
         return {
             name: result.name ?? attachment.name,
-            savedTo: result.savedTo ?? save_path,
+            savedTo: result.savedTo ?? safePath,
             size: result.fileSize ?? attachment.size,
         };
     }

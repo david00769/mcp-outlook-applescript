@@ -12,6 +12,7 @@ export {
     ListAttachmentsInput,
     DownloadAttachmentInput,
     SendEmailInput,
+    ReplyToEmailInput,
     type ListFoldersParams,
     type ListFoldersWithAccountParams,
     type ListEmailsParams,

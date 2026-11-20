@@ -24,6 +24,38 @@ export interface ExecuteOptions {
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
+/**
+ * AppleScript handler that neutralizes the output delimiters inside a value
+ * read from Outlook. Every delimiter starts with `{{`, so following EVERY `{`
+ * with a zero-width space (U+200B) leaves no two braces adjacent, and a crafted
+ * subject, body, name or address cannot forge records or fields in the
+ * delimiter-formatted output the parser reads. (Replacing only `{{` is not
+ * enough: `{{{FIELD}}` would become `{ {{FIELD}}`.) Scripts call it as
+ * `my sanitizeField(...)`; the executor prepends it to any script that does, so
+ * no script can forget the definition. (Adopted from MagnasiePro's fork.)
+ */
+export const SANITIZE_HANDLER = `on sanitizeField(theValue)
+  set theText to ""
+  try
+    set theText to theValue as string
+  on error
+    return theValue
+  end try
+  set savedTID to AppleScript's text item delimiters
+  set AppleScript's text item delimiters to "{"
+  set theItems to text items of theText
+  set AppleScript's text item delimiters to ("{" & (character id 8203))
+  set theText to theItems as text
+  set AppleScript's text item delimiters to savedTID
+  return theText
+end sanitizeField
+`;
+
+/** Returns the script with the sanitize handler prepended when it calls it. */
+export function withSanitizeHandler(script: string): string {
+    return script.includes('my sanitizeField(') ? `${SANITIZE_HANDLER}\n${script}` : script;
+}
+
 const ERROR_PATTERNS = {
     notRunning: /not running|application isn't running/i,
     permissionDenied: /not authorized|permission denied|assistive access/i,
@@ -59,7 +91,7 @@ export function executeAppleScript(script: string, options: ExecuteOptions = {})
         encoding: 'utf8' as const,
         timeout: timeoutMs,
         maxBuffer: 50 * 1024 * 1024, // 50MB for large results
-        input: script,
+        input: withSanitizeHandler(script),
     };
 
     // Throttle: pace AppleScript calls to give Outlook's bridge breathing room.
